@@ -41,6 +41,9 @@ class MigratorTest extends \Test\TestCase {
 	/** @var string */
 	private $tableName;
 
+	/** @var string */
+	private $tableNameFk;
+
 	protected function setUp() {
 		parent::setUp();
 
@@ -48,9 +51,11 @@ class MigratorTest extends \Test\TestCase {
 		$this->connection = \OC::$server->getDatabaseConnection();
 		$this->manager = new \OC\DB\MDB2SchemaManager($this->connection);
 		$this->tableName = strtolower($this->getUniqueID($this->config->getSystemValue('dbtableprefix', 'oc_') . 'test_'));
+		$this->tableNameFk = strtolower($this->getUniqueID($this->config->getSystemValue('dbtableprefix', 'oc_') . 'test_'));
 	}
 
 	protected function tearDown() {
+		$this->connection->exec('DROP TABLE IF EXISTS' . $this->connection->quoteIdentifier($this->tableNameFk));
 		$this->connection->exec('DROP TABLE ' . $this->connection->quoteIdentifier($this->tableName));
 		parent::tearDown();
 	}
@@ -268,5 +273,25 @@ class MigratorTest extends \Test\TestCase {
 		$migrator->migrate($endSchema);
 
 		$this->assertTrue(true);
+	}
+
+	public function testAddingForeignKey() {
+		$startSchema = new Schema([], [], $this->getSchemaConfig());
+		$table = $startSchema->createTable($this->tableName);
+		$table->addColumn('id', 'integer', ['autoincrement' => true]);
+		$table->addColumn('name', 'string');
+		$table->setPrimaryKey(['id']);
+
+		$fkName = "fkc";
+		$tableFk = $startSchema->createTable($this->tableNameFk);
+		$tableFk->addColumn('fk_id', 'integer');
+		$tableFk->addColumn('name', 'string');
+		$tableFk->addForeignKeyConstraint($this->tableName, array('fk_id'), array('id'), array(), $fkName);
+
+		$migrator = $this->manager->getMigrator();
+		$migrator->migrate($startSchema);
+
+
+		$this->assertTrue($startSchema->getTable($this->tableNameFk)->hasForeignKey($fkName));
 	}
 }
